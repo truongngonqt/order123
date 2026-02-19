@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restaurant Tisch System</title>
+
+<style>
+body{
+font-family:-apple-system, BlinkMacSystemFont, Arial;
+margin:0;
+background:#f2f2f7;
+font-size:20px;
+}
+
+header{
+background:#111;
+color:white;
+padding:20px;
+text-align:center;
+font-size:28px;
+font-weight:bold;
+}
+
+.container{
+padding:20px;
+}
+
+button{
+cursor:pointer;
+border:none;
+border-radius:14px;
+font-size:20px;
+padding:16px 20px;
+min-height:60px;
+}
+
+button:active{
+transform:scale(0.97);
+}
+
+/* TABLE GRID */
+.tables{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+gap:20px;
+}
+
+.table{
+padding:40px 20px;
+border-radius:20px;
+font-size:24px;
+font-weight:bold;
+text-align:center;
+color:white;
+}
+
+.table.occupied{
+background:#e53935;
+}
+
+.table:not(.occupied){
+background:#4CAF50;
+}
+
+.add-table{
+background:#2196F3;
+}
+
+/* FULLSCREEN MODAL */
+.modal{
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:white;
+z-index:1000;
+overflow:hidden;
+}
+
+.modal-content{
+width:100%;
+height:100%;
+overflow-y:auto;
+padding:25px;
+box-sizing:border-box;
+}
+
+/* CLOSE BUTTON */
+.close{
+position:fixed;
+right:20px;
+top:20px;
+font-size:26px;
+background:#ff3b30;
+color:white;
+width:50px;
+height:50px;
+display:flex;
+align-items:center;
+justify-content:center;
+border-radius:50%;
+}
+
+/* MENU */
+.menu-item{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin:15px 0;
+padding:15px;
+background:white;
+border-radius:16px;
+box-shadow:0 3px 10px rgba(0,0,0,0.05);
+font-size:20px;
+}
+
+.menu-item button{
+background:#34c759;
+color:white;
+width:60px;
+height:60px;
+font-size:28px;
+}
+
+/* ORDER */
+.order-item{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin:15px 0;
+padding:15px;
+background:#fff;
+border-radius:16px;
+box-shadow:0 3px 10px rgba(0,0,0,0.05);
+}
+
+.controls button{
+width:55px;
+height:55px;
+font-size:24px;
+margin:0 5px;
+}
+
+.controls button:nth-child(1){
+background:#ff9500;
+color:white;
+}
+
+.controls button:nth-child(2){
+background:#34c759;
+color:white;
+}
+
+.controls button:nth-child(3){
+background:#ff3b30;
+color:white;
+}
+
+/* BILL */
+.bill-line{
+display:flex;
+justify-content:space-between;
+margin:15px 0;
+font-size:22px;
+}
+
+h2{
+font-size:30px;
+margin-top:10px;
+}
+
+h3{
+font-size:24px;
+margin-top:30px;
+}
+
+hr{
+margin:30px 0;
+}
+</style>
+</head>
+<body>
+
+<header>Restaurant Tisch Verwaltung</header>
+
+<div class="container">
+<button onclick="resetApp()">Reset</button>
+<br><br>
+<div class="tables" id="tables"></div>
+</div>
+
+<!-- Tisch Modal -->
+<div class="modal" id="tableModal">
+<div class="modal-content">
+<div class="close" onclick="closeTable()">✖</div>
+<h2 id="tableTitle"></h2>
+
+<h3>Menü</h3>
+<div id="menu"></div>
+
+<hr>
+<h3>Bestellung</h3>
+<div id="order"></div>
+
+<br>
+<button style="width:100%;background:#007aff;color:white;" onclick="openBill()">Rechnung</button>
+</div>
+</div>
+
+<!-- Rechnung Modal -->
+<div class="modal" id="billModal">
+<div class="modal-content">
+<div class="close" onclick="closeBill()">✖</div>
+<h2>Rechnung</h2>
+<div id="billContent"></div>
+</div>
+</div>
+
+<script>
+
+/* ✅ LƯU SỐ BÀN */
+let tableCount = parseInt(localStorage.getItem("tableCount")) || 10;
+let currentTable = null;
+let tables = JSON.parse(localStorage.getItem("tables")) || {};
+
+function save(){
+localStorage.setItem("tables",JSON.stringify(tables));
+localStorage.setItem("tableCount",tableCount);
+}
+
+function renderTables(){
+let container=document.getElementById("tables");
+container.innerHTML="";
+for(let i=1;i<=tableCount;i++){
+let div=document.createElement("div");
+div.className="table";
+if(tables[i]&&Object.keys(tables[i]).length>0){
+div.classList.add("occupied");
+}
+div.innerText="Tisch "+i;
+div.onclick=()=>openTable(i);
+container.appendChild(div);
+}
+let add=document.createElement("div");
+add.className="table add-table";
+add.innerText="+";
+add.onclick=()=>{
+tableCount++;
+save();
+renderTables();
+};
+container.appendChild(add);
+}
+
+function openTable(n){
+currentTable=n;
+if(!tables[n])tables[n]={};
+document.getElementById("tableTitle").innerText="Tisch "+n;
+document.getElementById("tableModal").style.display="block";
+renderMenu();
+renderOrder();
+}
+
+function closeTable(){
+document.getElementById("tableModal").style.display="none";
+}
+
+const menuData = [
+{
+category:"🥢 VORSPEISE (Khai vị)",
+items:[
+{nr:1,name:"Edamame",price:5},
+{nr:2,name:"Mango-Avo Rollen",price:6},
+{nr:3,name:"Sommerrollen",price:5},
+{nr:4,name:"Kim Chi",price:4},
+]
+},
+{
+category:"🍜 SUPPEN",
+items:[
+{nr:5,name:"Wantan Suppe (mild)",price:5},
+{nr:6,name:"Tom-Kha-Gai Suppe",price:5},
+{nr:7,name:"SeaFood Suppe",price:5},
+{nr:8,name:"Ha Kao Suppe",price:5},
+]
+},
+{
+category:"🥗 SALAT",
+items:[
+{nr:9,name:"Mango Salat",price:5},
+{nr:10,name:"Tofu mit Mango-Salat",price:5},
+]
+},
+{
+category:"🥗 BOWL",
+items:[
+{nr:11,name:"FRUITY SALMON",price:13},
+{nr:12,name:"Super Bowl",price:16.5},
+{nr:13,name:"Tofu Bowl",price:12},
+]
+},
+{
+category:"🍣 SUSHI MENU",
+items:[
+{nr:16,name:"Menu 1",price:13},
+{nr:17,name:"Menu 2",price:13},
+{nr:18,name:"Menu 3",price:18.5},
+{nr:19,name:"Menu 4",price:21},
+{nr:20,name:"SPECIAL Menu",price:47},
+]
+},
+{
+category:"🍣 NIGIRI",
+items:[
+{nr:33,name:"Nigiri Lachs",price:4},
+{nr:34,name:"Nigiri Garnelen",price:5},
+{nr:35,name:"Nigiri Thunfisch",price:5},
+{nr:36,name:"Nigiri Avocado",price:4},
+]
+},
+{
+category:"🍙 MAKI",
+items:[
+{nr:38,name:"Maki Lachs",price:4.5},
+{nr:39,name:"Maki Thunfisch",price:5.5},
+{nr:40,name:"Maki Avocado",price:4.5},
+{nr:41,name:"Maki Gurke",price:4.5},
+]
+},
+{
+category:"🍲 PHO",
+items:[
+{nr:51,name:"Pho Bo",price:9.9},
+{nr:52,name:"Pho Ga",price:9.9},
+{nr:53,name:"Pho Dau",price:9.9},
+]
+},
+{
+category:"🥤 SOFT DRINKS",
+items:[
+{nr:68,name:"Mineralwasser (0,25l)",price:2.5},
+{nr:69,name:"Mineralwasser (0,75l)",price:6},
+{nr:70,name:"Saft (0,3l)",price:3.5},
+{nr:71,name:"Cola / Fanta / Sprite",price:3},
+]
+}
+];
+
+
+function renderMenu(){
+let menu=document.getElementById("menu");
+menu.innerHTML="";
+menuData.forEach(section=>{
+let title=document.createElement("h3");
+title.innerText=section.category;
+menu.appendChild(title);
+section.items.forEach(item=>{
+let div=document.createElement("div");
+div.className="menu-item";
+div.innerHTML=`
+<span>${item.nr}. ${item.name} - ${item.price.toFixed(2)} €</span>
+<button onclick="addItem(${item.nr})">+</button>
+`;
+menu.appendChild(div);
+});
+});
+}
+
+function addItem(nr){
+let found;
+menuData.forEach(section=>{
+section.items.forEach(item=>{
+if(item.nr===nr){ found=item; }
+});
+});
+if(!tables[currentTable][nr]){
+tables[currentTable][nr]={name:found.name,price:found.price,qty:0};
+}
+tables[currentTable][nr].qty++;
+save();
+renderOrder();
+renderTables();
+}
+
+function renderOrder(){
+let order=document.getElementById("order");
+order.innerHTML="";
+let items=tables[currentTable];
+for(let key in items){
+let it=items[key];
+let div=document.createElement("div");
+div.className="order-item";
+div.innerHTML=`
+<span>${it.qty}x ${key}. ${it.name}</span>
+<div class="controls">
+<button onclick="changeQty(${key},-1)">-</button>
+<button onclick="changeQty(${key},1)">+</button>
+<button onclick="removeItem(${key})">X</button>
+</div>
+`;
+order.appendChild(div);
+}
+}
+
+function changeQty(nr,val){
+tables[currentTable][nr].qty+=val;
+if(tables[currentTable][nr].qty<=0){
+delete tables[currentTable][nr];
+}
+save();
+renderOrder();
+renderTables();
+}
+
+function removeItem(nr){
+delete tables[currentTable][nr];
+save();
+renderOrder();
+renderTables();
+}
+
+function openBill(){
+let bill=document.getElementById("billContent");
+bill.innerHTML="";
+let total=0;
+let items=tables[currentTable];
+for(let key in items){
+let it=items[key];
+let lineTotal=it.qty*it.price;
+total+=lineTotal;
+bill.innerHTML+=`
+<div class="bill-line">
+<span>${it.qty}x ${key}. ${it.name}</span>
+<span>${lineTotal.toFixed(2)} €</span>
+</div>
+`;
+}
+bill.innerHTML+=`<hr>
+<div class="bill-line">
+<strong>Gesamt:</strong>
+<strong>${total.toFixed(2)} €</strong>
+</div>
+<br>
+<button style="width:100%;background:#34c759;color:white;" onclick="finishBill()">Rechnung abschließen</button>
+`;
+document.getElementById("billModal").style.display="block";
+}
+
+function finishBill(){
+if(confirm("Rechnung abschließen?")){
+tables[currentTable]={};
+save();
+closeBill();
+closeTable();
+renderTables();
+}
+}
+
+function closeBill(){
+document.getElementById("billModal").style.display="none";
+}
+
+function resetApp(){
+if(confirm("Alles zurücksetzen?")){
+localStorage.clear();
+tables={};
+tableCount=10;
+renderTables();
+}
+}
+
+renderTables();
+</script>
+
+</body>
+</html>
